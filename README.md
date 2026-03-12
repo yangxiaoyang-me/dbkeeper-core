@@ -59,15 +59,17 @@ application:
       initial_delay_ms: 1000 # 初始延迟（毫秒）
       max_delay_ms: 10000 # 最大延迟（毫秒）
    notify:
-      type: http
+      template: "dbkeeper处理完成，成功{success}个，失败{failed}个，同步失败{sync_failed}个。" # 可选：通知消息模板；不填则默认 success=0, failed=0, sync_failed=0
       channels:
          - name: chuckfang-main
-           channel_type: chuckfang
-           type: http
-           urls:
-              - https://api.chuckfang.com/
-           method: GET
-           timeout_ms: 5000
+           channel_type: chuckfang # 必填
+           url: https://api.chuckfang.com/%E6%9D%A8%E5%B0%8F%E7%BE%8A%E7%9A%84mate70pro/%E7%8E%B0%E8%B4%A7%E6%95%B0%E6%8D%AE%E5%BA%93%E5%A4%87%E4%BB%BD/ # 必填
+         - name: dingtalk-robot
+           channel_type: dingtalk # 必填
+           url: https://oapi.dingtalk.com/robot/send # 必填
+           access_token: your_access_token # 必填
+           sign: SECxxxx # 可选：仅开启“加签”安全设置时必填
+           keyword: dbkeeper # 可选：若填写，钉钉消息末尾追加“关键字：xxx”
    snapshots:
       - id: 97_mysql_dev_schema_name
         db_type: mysql

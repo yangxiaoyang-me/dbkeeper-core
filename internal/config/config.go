@@ -61,25 +61,32 @@ type Database struct {
 // Notify 是通知配置，支持全局配置或多渠道配置。
 // 使用场景：备份完成后发送汇总通知。
 type Notify struct {
-	Type        string            `yaml:"type"`         // 通知类型（http）
-	URLs        []string          `yaml:"urls"`         // 通知 URL 列表（向后兼容）
-	Method      string            `yaml:"method"`       // HTTP 方法（GET/POST）
-	ChannelType string            `yaml:"channel_type"` // 渠道类型（chuckfang 等）
-	Headers     map[string]string `yaml:"headers"`      // 自定义 HTTP 头
-	TimeoutMS   int               `yaml:"timeout_ms"`   // 超时时间（毫秒）
-	Channels    []NotifyChannel   `yaml:"channels"`     // 多渠道配置
+	Type        string            `yaml:"type"`
+	Template    string            `yaml:"template"`
+	URL         string            `yaml:"url"`
+	Method      string            `yaml:"method"`
+	ChannelType string            `yaml:"channel_type"`
+	Keyword     string            `yaml:"keyword"`
+	AccessToken string            `yaml:"access_token"`
+	Sign        string            `yaml:"sign"`
+	Headers     map[string]string `yaml:"headers"`
+	TimeoutMS   int               `yaml:"timeout_ms"`
+	Channels    []NotifyChannel   `yaml:"channels"`
 }
 
 // NotifyChannel 是单个通知渠道配置。
 // 使用场景：支持多个不同的通知目标（如多个钉钉群）。
 type NotifyChannel struct {
-	Name        string            `yaml:"name"`         // 渠道名称
-	Type        string            `yaml:"type"`         // 渠道类型（http）
-	URLs        []string          `yaml:"urls"`         // 通知 URL 列表
-	Method      string            `yaml:"method"`       // HTTP 方法
-	ChannelType string            `yaml:"channel_type"` // 渠道子类型
-	Headers     map[string]string `yaml:"headers"`      // 自定义 HTTP 头
-	TimeoutMS   int               `yaml:"timeout_ms"`   // 超时时间（毫秒）
+	Name        string            `yaml:"name"`
+	Type        string            `yaml:"type"`
+	URL         string            `yaml:"url"`
+	Method      string            `yaml:"method"`
+	ChannelType string            `yaml:"channel_type"`
+	Keyword     string            `yaml:"keyword"`
+	AccessToken string            `yaml:"access_token"`
+	Sign        string            `yaml:"sign"`
+	Headers     map[string]string `yaml:"headers"`
+	TimeoutMS   int               `yaml:"timeout_ms"`
 }
 
 // RetryConfig 是重试配置。

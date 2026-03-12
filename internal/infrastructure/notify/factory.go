@@ -13,7 +13,6 @@ import (
 // 其他类型返回 nil 禁用通知。
 // 使用场景：应用启动时根据配置初始化通知组件。
 func NewNotifier(cfg config.Notify) Notifier {
-	// Global switch: if explicitly not http, disable notifications.
 	if strings.TrimSpace(cfg.Type) != "" && !strings.EqualFold(strings.TrimSpace(cfg.Type), "http") {
 		return nil
 	}
@@ -33,19 +32,17 @@ func normalizeChannels(cfg config.Notify) []config.NotifyChannel {
 		out := make([]config.NotifyChannel, 0, len(cfg.Channels))
 		for i, ch := range cfg.Channels {
 			chType := strings.TrimSpace(ch.Type)
-			// Default channel type is http.
 			if chType == "" {
 				chType = "http"
 			}
 			if !strings.EqualFold(chType, "http") {
 				continue
 			}
-			if len(ch.URLs) == 0 {
+			ch.URL = strings.TrimSpace(ch.URL)
+			if ch.URL == "" {
 				continue
 			}
-			if ch.Method == "" {
-				ch.Method = http.MethodGet
-			}
+			ch.Method = resolveHTTPMethod(ch.ChannelType, ch.Method)
 			if ch.TimeoutMS <= 0 {
 				ch.TimeoutMS = 5000
 			}
@@ -57,26 +54,51 @@ func normalizeChannels(cfg config.Notify) []config.NotifyChannel {
 		return out
 	}
 
-	// 向后兼容的单渠道配置方式
-	if len(cfg.URLs) == 0 {
+	cfg.URL = strings.TrimSpace(cfg.URL)
+	if cfg.URL == "" {
 		return nil
 	}
-	method := cfg.Method
-	if method == "" {
-		method = http.MethodGet
-	}
+
+	method := resolveHTTPMethod(cfg.ChannelType, cfg.Method)
 	timeout := cfg.TimeoutMS
 	if timeout <= 0 {
 		timeout = 5000
 	}
+
 	return []config.NotifyChannel{
 		{
 			Name:        "default",
-			URLs:        cfg.URLs,
+			URL:         cfg.URL,
 			Method:      method,
 			ChannelType: cfg.ChannelType,
+			Keyword:     cfg.Keyword,
+			AccessToken: cfg.AccessToken,
+			Sign:        cfg.Sign,
 			Headers:     cfg.Headers,
 			TimeoutMS:   timeout,
 		},
+	}
+}
+
+func defaultHTTPMethod(channelType string) string {
+	if strings.EqualFold(strings.TrimSpace(channelType), "dingtalk") {
+		return http.MethodPost
+	}
+	return http.MethodGet
+}
+
+func resolveHTTPMethod(channelType, configuredMethod string) string {
+	t := strings.ToLower(strings.TrimSpace(channelType))
+	switch t {
+	case "dingtalk":
+		return http.MethodPost
+	case "chuckfang":
+		return http.MethodGet
+	default:
+		m := strings.ToUpper(strings.TrimSpace(configuredMethod))
+		if m == "" {
+			return defaultHTTPMethod(channelType)
+		}
+		return m
 	}
 }

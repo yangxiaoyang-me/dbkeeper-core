@@ -1,9 +1,11 @@
 package notify
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"net/url"
@@ -23,60 +25,98 @@ import (
 // 使用场景：HTTPNotifier.Notify() 内部调用，处理单个渠道的发送逻辑。
 func notifyOneChannel(ctx context.Context, ch config.NotifyChannel, payload Payload) error {
 	client := &http.Client{Timeout: time.Duration(ch.TimeoutMS) * time.Millisecond}
+	channelType := strings.ToLower(strings.TrimSpace(ch.ChannelType))
 	method := strings.ToUpper(strings.TrimSpace(ch.Method))
 	if method == "" {
+		method = defaultHTTPMethod(channelType)
+	}
+	if channelType == "dingtalk" {
+		method = http.MethodPost
+	}
+	if channelType == "chuckfang" {
 		method = http.MethodGet
 	}
 
-	for _, endpoint := range ch.URLs {
-		reqURL := endpoint
-		var body *strings.Reader
+	endpoint := strings.TrimSpace(ch.URL)
+	if endpoint == "" {
+		return fmt.Errorf("notify url is empty")
+	}
+	reqURL := endpoint
+	var body []byte
 
-		if method == http.MethodGet {
-			if strings.EqualFold(strings.TrimSpace(ch.ChannelType), "chuckfang") {
-				u, err := buildChuckfangURL(endpoint, payload)
-				if err != nil {
-					return err
-				}
-				reqURL = u
-			} else {
-				parsed, err := url.Parse(endpoint)
-				if err != nil {
-					return fmt.Errorf("parse notify url failed: %w", err)
-				}
-				q := parsed.Query()
-				appendPayloadQuery(q, payload)
-				parsed.RawQuery = q.Encode()
-				reqURL = parsed.String()
-			}
-			body = strings.NewReader("")
-		} else {
-			data, err := json.Marshal(payload)
+	if channelType == "dingtalk" {
+		var err error
+		reqURL, err = buildDingTalkURL(endpoint, ch.AccessToken, ch.Sign, time.Now())
+		if err != nil {
+			return err
+		}
+		body, err = buildDingTalkBody(payload, ch.Keyword)
+		if err != nil {
+			return err
+		}
+	} else if method == http.MethodGet {
+		if channelType == "chuckfang" {
+			u, err := buildChuckfangURL(endpoint, payload)
 			if err != nil {
-				return fmt.Errorf("marshal notify payload failed: %w", err)
+				return err
 			}
-			body = strings.NewReader(string(data))
+			reqURL = u
+		} else {
+			parsed, err := url.Parse(endpoint)
+			if err != nil {
+				return fmt.Errorf("parse notify url failed: %w", err)
+			}
+			q := parsed.Query()
+			appendPayloadQuery(q, payload)
+			parsed.RawQuery = q.Encode()
+			reqURL = parsed.String()
 		}
-
-		req, err := http.NewRequestWithContext(ctx, method, reqURL, body)
+	} else {
+		data, err := json.Marshal(payload)
 		if err != nil {
-			return fmt.Errorf("create notify request failed: %w", err)
+			return fmt.Errorf("marshal notify payload failed: %w", err)
 		}
-		if method != http.MethodGet {
-			req.Header.Set("Content-Type", "application/json")
-		}
-		for k, v := range ch.Headers {
-			req.Header.Set(k, v)
-		}
+		body = data
+	}
 
-		log.Printf("[notify] channel=%s method=%s url=%s", ch.Name, method, reqURL)
-		resp, err := client.Do(req)
-		if err != nil {
-			log.Printf("[notify] channel=%s method=%s url=%s err=%v", ch.Name, method, reqURL, err)
-			return fmt.Errorf("send notify failed: %w", err)
-		}
-		log.Printf("[notify] channel=%s method=%s url=%s status=%s", ch.Name, method, reqURL, resp.Status)
-		_ = resp.Body.Close()
+	req, err := http.NewRequestWithContext(ctx, method, reqURL, bytes.NewReader(body))
+	if err != nil {
+		return fmt.Errorf("create notify request failed: %w", err)
+	}
+	if method != http.MethodGet {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	for k, v := range ch.Headers {
+		req.Header.Set(k, v)
+	}
+
+	log.Printf("[notify] channel=%s method=%s url=%s", ch.Name, method, maskNotifyURL(reqURL))
+	resp, err := client.Do(req)
+	if err != nil {
+		log.Printf("[notify] channel=%s method=%s url=%s err=%v", ch.Name, method, maskNotifyURL(reqURL), err)
+		return fmt.Errorf("send notify failed: %w", err)
+	}
+	respBody, readErr := io.ReadAll(resp.Body)
+	_ = resp.Body.Close()
+	if readErr != nil {
+		log.Printf("[notify] channel=%s method=%s url=%s status=%s read_body_err=%v", ch.Name, method, maskNotifyURL(reqURL), resp.Status, readErr)
+	} else {
+		log.Printf("[notify] channel=%s method=%s url=%s status=%s resp_body=%s", ch.Name, method, maskNotifyURL(reqURL), resp.Status, strings.TrimSpace(string(respBody)))
 	}
 	return nil
+}
+
+func maskNotifyURL(raw string) string {
+	u, err := url.Parse(raw)
+	if err != nil {
+		return raw
+	}
+	q := u.Query()
+	for _, key := range []string{"access_token", "sign"} {
+		if q.Get(key) != "" {
+			q.Set(key, "***")
+		}
+	}
+	u.RawQuery = q.Encode()
+	return u.String()
 }

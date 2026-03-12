@@ -17,15 +17,18 @@
     initial_delay_ms: 1000 # 初始延迟（毫秒）
     max_delay_ms: 10000 # 最大延迟（毫秒）
   notify:
-    type: http
+    # 可选：通知消息模板；不填则默认 success=0, failed=0, sync_failed=0
+    template: "dbkeeper处理完成，成功{success}个，失败{failed}个，同步失败{sync_failed}个。"
     channels:
       - name: chuckfang-main
-        channel_type: chuckfang
-        type: http
-        urls:
-          - https://api.chuckfang.com/
-        method: GET
-        timeout_ms: 5000
+        channel_type: chuckfang # 必填
+        url: https://api.chuckfang.com/xxx # 必填
+      - name: dingtalk-robot
+        channel_type: dingtalk # 必填
+        url: https://oapi.dingtalk.com/robot/send # 必填
+        access_token: xxxx # 必填
+        sign: xxxx # 可选：仅开启“加签”安全设置时必填
+        keyword: xxxx # 可选：若填写，钉钉消息末尾追加“关键字：xxx”
   snapshots:
     - id: 97_mysql_dev_schema_name
       db_type: mysql

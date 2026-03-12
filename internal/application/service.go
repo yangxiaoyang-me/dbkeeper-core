@@ -16,6 +16,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -264,14 +265,16 @@ func (s *SnapshotsService) sendNotification(ctx context.Context, batchStart time
 		status = "partial_failed"
 	}
 
-	lines := make([]string, 0, 1+len(snapshotsFailedItems)+len(syncFailedItems))
-	lines = append(lines, fmt.Sprintf("success=%d, failed=%d, sync_failed=%d", snapshotsSuccessCount, snapshotsFailedCount, syncFailedCount))
-	if len(successItems) > 0 {
-		lines = append(lines, "success_ids="+strings.Join(successItems, ","))
-	}
-	lines = append(lines, snapshotsFailedItems...)
-	lines = append(lines, syncFailedItems...)
-	message := strings.Join(lines, "; ")
+	message := buildNotifyMessage(
+		s.cfg.Application.Notify.Template,
+		snapshotsSuccessCount,
+		snapshotsFailedCount,
+		syncFailedCount,
+		totalDB,
+		asyncSnapshots,
+		status,
+		totalDurationS,
+	)
 
 	payload := notify.Payload{
 		Status:          status,
@@ -295,6 +298,36 @@ func (s *SnapshotsService) sendNotification(ctx context.Context, batchStart time
 	} else {
 		s.logger.Info("notification sent successfully")
 	}
+}
+
+func buildNotifyMessage(template string, successCount, failedCount, syncFailedCount, totalDB, asyncSnapshots int, status string, totalDurationS float64) string {
+	defaultMessage := fmt.Sprintf("success=%d, failed=%d, sync_failed=%d", successCount, failedCount, syncFailedCount)
+	template = strings.TrimSpace(template)
+	if template == "" {
+		return defaultMessage
+	}
+
+	values := map[string]string{
+		"success":         strconv.Itoa(successCount),
+		"failed":          strconv.Itoa(failedCount),
+		"sync_failed":     strconv.Itoa(syncFailedCount),
+		"total_db":        strconv.Itoa(totalDB),
+		"async_snapshots": strconv.Itoa(asyncSnapshots),
+		"status":          status,
+		"duration_s":      strconv.FormatFloat(totalDurationS, 'f', 3, 64),
+		"default":         defaultMessage,
+	}
+
+	replacements := make([]string, 0, len(values)*6)
+	for k, v := range values {
+		replacements = append(replacements,
+			"{{"+k+"}}", v,
+			"{"+k+"}", v,
+			"${"+k+"}", v,
+		)
+	}
+
+	return strings.NewReplacer(replacements...).Replace(template)
 }
 
 // getRetryConfig 获取重试配置。
