@@ -9,7 +9,7 @@
 package appmeta
 
 // Version 是软件版本号（硬编码维护，每次发版时手动更新）。
-const Version = "v0.1.0"
+const Version = "v0.2.0"
 
 // BuildTime 是构建时间，默认 "unknown"。
 // 可在 go build 时通过 -ldflags "-X dbkeeper-core/internal/appmeta.BuildTime=..." 注入实际构建时间。
