@@ -49,6 +49,10 @@ func TestNormalizeChannels_TopLevelURLCompatibility(t *testing.T) {
 		AccessToken: "token-1",
 		Sign:        "SECxxx",
 		Keyword:     "dbkeeper",
+		At: config.NotifyAt{
+			IsAtAll:   false,
+			AtMobiles: []string{"18111360014"},
+		},
 	}
 
 	channels := normalizeChannels(cfg)
@@ -63,6 +67,12 @@ func TestNormalizeChannels_TopLevelURLCompatibility(t *testing.T) {
 	}
 	if channels[0].URL != "https://oapi.dingtalk.com/robot/send" {
 		t.Fatalf("unexpected url: %q", channels[0].URL)
+	}
+	if channels[0].At.IsAtAll {
+		t.Fatalf("expected isAtAll false")
+	}
+	if len(channels[0].At.AtMobiles) != 1 || channels[0].At.AtMobiles[0] != "18111360014" {
+		t.Fatalf("unexpected atMobiles: %#v", channels[0].At.AtMobiles)
 	}
 }
 
@@ -119,7 +129,7 @@ func TestBuildDingTalkURL(t *testing.T) {
 func TestBuildDingTalkBody(t *testing.T) {
 	body, err := buildDingTalkBody(Payload{
 		Message: "backup done",
-	}, "")
+	}, "", config.NotifyAt{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -138,12 +148,19 @@ func TestBuildDingTalkBody(t *testing.T) {
 	if textObj["content"] != "backup done" {
 		t.Fatalf("expected content backup done, got %#v", textObj["content"])
 	}
+	atObj, ok := got["at"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected at object")
+	}
+	if atObj["isAtAll"] != false {
+		t.Fatalf("expected isAtAll false, got %#v", atObj["isAtAll"])
+	}
 }
 
 func TestBuildDingTalkBody_WithKeyword(t *testing.T) {
 	body, err := buildDingTalkBody(Payload{
 		Message: "backup done",
-	}, "dbkeeper")
+	}, "dbkeeper", config.NotifyAt{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -158,5 +175,75 @@ func TestBuildDingTalkBody_WithKeyword(t *testing.T) {
 	}
 	if textObj["content"] != "backup done\n关键字：dbkeeper" {
 		t.Fatalf("expected prefixed content, got %#v", textObj["content"])
+	}
+}
+
+func TestBuildDingTalkBody_WithAtMobiles(t *testing.T) {
+	body, err := buildDingTalkBody(Payload{
+		Message: "backup done",
+	}, "dbkeeper", config.NotifyAt{
+		IsAtAll:   false,
+		AtMobiles: []string{"18111360014", "18681716468"},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var got map[string]any
+	if err := json.Unmarshal(body, &got); err != nil {
+		t.Fatalf("unmarshal failed: %v", err)
+	}
+	textObj, ok := got["text"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected text object")
+	}
+	want := "backup done\n关键字：dbkeeper\n@18111360014 @18681716468"
+	if textObj["content"] != want {
+		t.Fatalf("expected content %q, got %#v", want, textObj["content"])
+	}
+	atObj, ok := got["at"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected at object")
+	}
+	if atObj["isAtAll"] != false {
+		t.Fatalf("expected isAtAll false, got %#v", atObj["isAtAll"])
+	}
+	mobiles, ok := atObj["atMobiles"].([]any)
+	if !ok || len(mobiles) != 2 {
+		t.Fatalf("expected atMobiles with 2 items, got %#v", atObj["atMobiles"])
+	}
+}
+
+func TestBuildDingTalkBody_WithAtAll(t *testing.T) {
+	body, err := buildDingTalkBody(Payload{
+		Message: "backup done",
+	}, "dbkeeper", config.NotifyAt{
+		IsAtAll:   true,
+		AtMobiles: []string{"18111360014", "18681716468"},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var got map[string]any
+	if err := json.Unmarshal(body, &got); err != nil {
+		t.Fatalf("unmarshal failed: %v", err)
+	}
+	textObj, ok := got["text"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected text object")
+	}
+	if textObj["content"] != "backup done\n关键字：dbkeeper" {
+		t.Fatalf("unexpected content: %#v", textObj["content"])
+	}
+	atObj, ok := got["at"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected at object")
+	}
+	if atObj["isAtAll"] != true {
+		t.Fatalf("expected isAtAll true, got %#v", atObj["isAtAll"])
+	}
+	if _, exists := atObj["atMobiles"]; exists {
+		t.Fatalf("did not expect atMobiles when isAtAll=true")
 	}
 }

@@ -72,6 +72,7 @@ func normalizeChannels(cfg config.Notify) []config.NotifyChannel {
 			Method:      method,
 			ChannelType: cfg.ChannelType,
 			Keyword:     cfg.Keyword,
+			At:          cfg.At,
 			AccessToken: cfg.AccessToken,
 			Sign:        cfg.Sign,
 			Headers:     cfg.Headers,

@@ -50,7 +50,7 @@ func notifyOneChannel(ctx context.Context, ch config.NotifyChannel, payload Payl
 		if err != nil {
 			return err
 		}
-		body, err = buildDingTalkBody(payload, ch.Keyword)
+		body, err = buildDingTalkBody(payload, ch.Keyword, ch.At)
 		if err != nil {
 			return err
 		}

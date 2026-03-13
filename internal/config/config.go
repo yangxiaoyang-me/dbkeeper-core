@@ -67,11 +67,17 @@ type Notify struct {
 	Method      string            `yaml:"method"`
 	ChannelType string            `yaml:"channel_type"`
 	Keyword     string            `yaml:"keyword"`
+	At          NotifyAt          `yaml:"at"`
 	AccessToken string            `yaml:"access_token"`
 	Sign        string            `yaml:"sign"`
 	Headers     map[string]string `yaml:"headers"`
 	TimeoutMS   int               `yaml:"timeout_ms"`
 	Channels    []NotifyChannel   `yaml:"channels"`
+}
+
+type NotifyAt struct {
+	IsAtAll   bool     `yaml:"isAtAll"`
+	AtMobiles []string `yaml:"atMobiles"`
 }
 
 // NotifyChannel 是单个通知渠道配置。
@@ -83,6 +89,7 @@ type NotifyChannel struct {
 	Method      string            `yaml:"method"`
 	ChannelType string            `yaml:"channel_type"`
 	Keyword     string            `yaml:"keyword"`
+	At          NotifyAt          `yaml:"at"`
 	AccessToken string            `yaml:"access_token"`
 	Sign        string            `yaml:"sign"`
 	Headers     map[string]string `yaml:"headers"`

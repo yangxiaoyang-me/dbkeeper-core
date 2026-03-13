@@ -10,6 +10,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"dbkeeper-core/internal/config"
 )
 
 func buildDingTalkURL(endpoint, accessToken, secret string, now time.Time) (string, error) {
@@ -43,14 +45,31 @@ func signDingTalk(timestamp, secret string) string {
 	return base64.StdEncoding.EncodeToString(sum)
 }
 
-func buildDingTalkBody(payload Payload, keyword string) ([]byte, error) {
+func buildDingTalkBody(payload Payload, keyword string, at config.NotifyAt) ([]byte, error) {
 	content := strings.TrimSpace(payload.Message)
 	if content == "" {
-		content = fmt.Sprintf("备份完成：成功 %d，失败 %d，总耗时 %.3f 秒。", payload.SuccessCount, payload.FailedCount, payload.TotalDurationS)
+		content = fmt.Sprintf("备份完成：成功%d，失败%d，总耗时 %.3f 秒。", payload.SuccessCount, payload.FailedCount, payload.TotalDurationS)
 	}
+
 	keyword = strings.TrimSpace(keyword)
 	if keyword != "" {
-		content = content + "\n关键字：" + keyword
+		content += "\n关键字：" + keyword
+	}
+
+	cleanMobiles := make([]string, 0, len(at.AtMobiles))
+	for _, mobile := range at.AtMobiles {
+		mobile = strings.TrimSpace(mobile)
+		if mobile == "" {
+			continue
+		}
+		cleanMobiles = append(cleanMobiles, mobile)
+	}
+	if !at.IsAtAll && len(cleanMobiles) > 0 {
+		mentions := make([]string, 0, len(cleanMobiles))
+		for _, mobile := range cleanMobiles {
+			mentions = append(mentions, "@"+mobile)
+		}
+		content += "\n" + strings.Join(mentions, " ")
 	}
 
 	msg := map[string]any{
@@ -58,7 +77,14 @@ func buildDingTalkBody(payload Payload, keyword string) ([]byte, error) {
 		"text": map[string]string{
 			"content": content,
 		},
+		"at": map[string]any{
+			"isAtAll": at.IsAtAll,
+		},
 	}
+	if !at.IsAtAll && len(cleanMobiles) > 0 {
+		msg["at"].(map[string]any)["atMobiles"] = cleanMobiles
+	}
+
 	data, err := json.Marshal(msg)
 	if err != nil {
 		return nil, fmt.Errorf("marshal dingtalk payload failed: %w", err)
