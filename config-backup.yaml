@@ -44,21 +44,13 @@
       password: password1234
       schema: schema_name
       storages:
-        - id: local
+        - id: storage01
           type: local # 支持 local/host/s3/webdav
           path: /data/snapshots/mysql/97_mysql_dev_schema_name/
           retention_count: 5
-        - id: storage01
-          type: host # 支持 local/host/s3/webdav
-          ip: 192.168.7.96
-          port: 22
-          path: /data/snapshots/mysql/97_mysql_dev_schema_name/
-          username: root
-          password: password1234
-          retention_count: 5
         - id: storage02
           type: host # 支持 local/host/s3/webdav
-          ip: 192.168.7.98
+          ip: 192.168.7.96
           port: 22
           path: /data/snapshots/mysql/97_mysql_dev_schema_name/
           username: root
@@ -70,6 +62,12 @@
           username: user
           password: password1234
           path: backup-bucket/data/snapshots/mysql/97_mysql_dev_schema_name/
+          retention_count: 2
+        - id: storage04
+          type: webdav
+          server_url: https://domain.com/snapshots
+          username: user
+          password: password1234
           retention_count: 2
     - id: 97_dm_dev_schema_name
       db_type: dm
@@ -84,29 +82,6 @@
           type: local # 支持 local/host/s3/webdav
           path: /data/snapshots/dm/97_dm_dev_schema_name/
           retention_count: 5
-        - id: storage01
-          type: host # 支持 local/host/s3/webdav
-          ip: 192.168.7.97
-          port: 22
-          path: /data/snapshots/dm/97_dm_dev_schema_name/
-          username: root
-          password: password1234
-          retention_count: 5
-        - id: storage02
-          type: host # 支持 local/host/s3/webdav
-          ip: 192.168.7.98
-          port: 22
-          path: /data/snapshots/dm/97_dm_dev_schema_name/
-          username: root
-          password: password1234
-          retention_count: 5
-        - id: storage03
-          type: s3
-          endpoint: 192.168.7.94:9000
-          username: password1234
-          password: password1234
-          path: backup-bucket/data/snapshots/dm/97_dm_dev_schema_name/
-          retention_count: 2
     - id: 97_pg_schema_name
       db_type: pg
       ip: 192.168.7.97
@@ -119,26 +94,3 @@
           type: local # 支持 local/host/s3/webdav
           path: /data/snapshots/pg/97_pg_schema_name/
           retention_count: 5
-        - id: storage01
-          type: host # 支持 local/host/s3/webdav
-          ip: 192.168.7.97
-          port: 22
-          path: /data/snapshots/pg/97_pg_schema_name/
-          username: root
-          password: password1234
-          retention_count: 5
-        - id: storage02
-          type: host # 支持 local/host/s3/webdav
-          ip: 192.168.7.98
-          port: 22
-          path: /data/snapshots/pg/97_pg_schema_name/
-          username: root
-          password: password1234
-          retention_count: 5
-        - id: storage03
-          type: s3
-          endpoint: 192.168.7.94:9000
-          username: user
-          password: password1234
-          path: backup-bucket/data/snapshots/pg/97_pg_schema_name/
-          retention_count: 2
