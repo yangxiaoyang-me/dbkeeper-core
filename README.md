@@ -39,138 +39,16 @@
 
 1. 配置文件支持如下结构：
 
-```yaml
-application:
-   concurrency: 30 # 当前应用允许并发度
-   work_path: ./data/workspace/ # 统一临时工作目录，所有备份先落地到这里
-   workspace_retention: 1 # 工作目录保留份数，默认1
-   task_timeout_s: 3600 # 单个备份任务超时时间（秒），0表示不限制
-   log:
-      dir: ./data/logs/
-   database:
-      db_type: sqlite # 使用的数据库类型
-      file_path: ./data/meta.db # 使用文件路径
-      journal_mode: WAL # 事务日志模式
-      synchronous: NORMAL # 同步策略
-      busy_timeout: 5000 # 锁等待时间（毫秒）
-      max_open_conns: 10 # 最大连接数，建议设置为并发数
-   retry:
-      max_attempts: 3 # 重试次数
-      initial_delay_ms: 1000 # 初始延迟（毫秒）
-      max_delay_ms: 10000 # 最大延迟（毫秒）
-   notify:
-      template: "dbkeeper处理完成，成功{success}个，失败{failed}个，同步失败{sync_failed}个。" # 可选：通知消息模板；不填则默认 success=0, failed=0, sync_failed=0
-      channels:
-         - name: chuckfang-main
-           channel_type: chuckfang # 必填
-           url: https://api.chuckfang.com/%E6%9D%A8%E5%B0%8F%E7%BE%8A%E7%9A%84mate70pro/%E7%8E%B0%E8%B4%A7%E6%95%B0%E6%8D%AE%E5%BA%93%E5%A4%87%E4%BB%BD/ # 必填
-         - name: dingtalk-robot
-           channel_type: dingtalk # 必填
-           url: https://oapi.dingtalk.com/robot/send # 必填
-           access_token: your_access_token # 必填
-           sign: SECxxxx # 可选：仅开启“加签”安全设置时必填
-           keyword: dbkeeper # 可选：若填写，钉钉消息末尾追加“关键字：xxx”
-   snapshots:
-      - id: 97_mysql_dev_schema_name
-        db_type: mysql
-        ip: 192.168.7.97
-        port: 3306
-        username: root
-        password: password1234
-        schema: schema_name
-        storages:
-           - id: local
-             type: local # 支持 local/host/s3/webdav
-             path: /data/snapshots/mysql/97_mysql_dev_schema_name/
-             retention_count: 5
-           - id: storage01
-             type: host # 支持 local/host/s3/webdav
-             ip: 192.168.7.96
-             port: 22
-             path: /data/snapshots/mysql/97_mysql_dev_schema_name/
-             username: root
-             password: password1234
-             retention_count: 5
-           - id: storage02
-             type: host # 支持 local/host/s3/webdav
-             ip: 192.168.7.98
-             port: 22
-             path: /data/snapshots/mysql/97_mysql_dev_schema_name/
-             username: root
-             password: password1234
-             retention_count: 5
-           - id: storage03
-             type: s3
-             endpoint: 192.168.7.94:9000
-             username: user
-             password: password1234
-             path: backup-bucket/data/snapshots/mysql/97_mysql_dev_schema_name/
-             retention_count: 2
-```
+   [点击查看详细配置文件](./config-backup.yaml)
 
-说明：S3 的 `path` 需要包含 `bucket/前缀`，例如 `snapshots-bucket/mysql/97_snapshots/`。
+   说明：S3 的 `path` 需要包含 `bucket/前缀`，例如 `snapshots-bucket/mysql/97_snapshots/`。
 
 2. 支持配置多个数据库备份，多个数据库可并发进行备份，受并发参数控制。
 
-补充：数据库导出工具需要预先安装。可选字段 `cmd_path` 用于指定导出命令路径（如 `mysqldump`、`pg_dump`、`dexp`）。
+   补充：数据库导出工具需要预先安装。可选字段 `cmd_path` 用于指定导出命令路径（如 `mysqldump`、`pg_dump`、`dexp`）。
 
-3. 本地使用 SQLite 保存备份过程中的元数据，建表如下：
+3. 本地使用 SQLite 保存备份过程中的元数据。
 
-```sql
-CREATE TABLE snapshots_attachment (
-  id                CHAR(32)     NOT NULL PRIMARY KEY,   -- 32位字符串主键
-
-  db_ip             VARCHAR(45)  NOT NULL,               -- 支持IPv4/IPv6
-  db_port           INTEGER      NOT NULL,
-  db_schema         VARCHAR(128) NOT NULL,               -- schema/库名
-
-  work_dir          VARCHAR(1024) NOT NULL,              -- 存放位置（工作目录）
-  file_name         VARCHAR(512)  NOT NULL,              -- 文件名
-  file_hash         CHAR(64)      NOT NULL,              -- 文件哈希（建议SHA-256=64 hex）
-
-  snapshots_start_time TIMESTAMP    NOT NULL,               -- 备份开始时间
-  snapshots_duration_s INTEGER      NOT NULL,               -- 备份耗时（秒）
-
-  created_at        TIMESTAMP    NOT NULL                -- 数据新增时间
-);
-
-CREATE INDEX idx_snapshots_attachment_db_time
-  ON snapshots_attachment (db_ip, db_port, db_schema, snapshots_start_time);
-
-CREATE INDEX idx_snapshots_attachment_hash
-  ON snapshots_attachment (file_hash);
-```
-
-```sql
-CREATE TABLE storage_snapshots_attachment (
-  id                    CHAR(32)     NOT NULL PRIMARY KEY,  -- 32位字符串主键
-
-  snapshots_attachment_id  CHAR(32)     NOT NULL,              -- 关联本地备份附件表ID
-
-  storage_name           VARCHAR(128) NOT NULL,              -- 远端id名称
-  storage_type           VARCHAR(32)  NOT NULL,              -- 远端类型（S3/MINIO/NAS/SFTP/FTP/...）
-
-  storage_ip             VARCHAR(45)  NULL,                  -- 远端IP（对象存储可为空）
-  storage_port           INTEGER      NULL,                  -- 远端端口
-
-  storage_work_dir       VARCHAR(1024) NOT NULL,             -- 远端路径（工作目录）
-  file_name             VARCHAR(512)  NOT NULL,             -- 远端文件名
-  file_hash             CHAR(64)      NOT NULL,             -- 远端文件哈希
-
-  created_at            TIMESTAMP     NOT NULL              -- 数据新增时间
-);
-
-ALTER TABLE storage_snapshots_attachment
-  ADD CONSTRAINT fk_storage_snapshots_attachment_snapshots
-  FOREIGN KEY (snapshots_attachment_id)
-  REFERENCES snapshots_attachment (id);
-
-CREATE INDEX idx_storage_snapshots_attachment_snapshots_id
-  ON storage_snapshots_attachment (snapshots_attachment_id);
-
-CREATE UNIQUE INDEX uk_storage_snapshots_attachment_dedup
-  ON storage_snapshots_attachment (snapshots_attachment_id, storage_name, storage_work_dir, file_name);
-```
 
 4. 所有备份文件在导出后立即压缩为 `.zst`（Zstandard）格式。
 
@@ -210,12 +88,15 @@ go build -trimpath \
 ```
 
 
+## 特别说明
 
+本软件不包含任何数据库客户端实用程序。
 
+用户必须依据供应商许可安装数据库工具。
 
 ## 使用
 
-1. 目前该工具仅支持`MySQ`L、`dm`、`PG`
+1. 目前该工具仅支持`MySQL`、`dm`、`PG`
 
 2. 使用对应数据库时，确保当前系统安装了对应系统的备份工具，如：`MySQL`使用`mysqldump`，`dm`使用`dexp`，`pg`使用`pg_dump`
 
@@ -224,6 +105,10 @@ go build -trimpath \
 4. 使用命令
 
    ```sh
+   # 设置执行权限
+   chmod 111 ./dbkeeper-core-linux-amd64 
+   
+   # 执行
    ./dbkeeper-core-linux-amd64 -config ./config.yaml
    ```
 
