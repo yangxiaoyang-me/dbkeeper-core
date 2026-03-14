@@ -14,11 +14,11 @@
 # 二、工具说明
 
 1. 名称：数据库备份工具（`DbKeeper`）。
-2. 支持备份 MySQL、达梦、PG 数据库。
+2. 支持 MySQL、达梦、PG 数据库。
 3. 支持多线程备份，线程池可配置。
 4. 支持配置备份工作目录、数据库 IP、端口、用户、密码、数据库名、数据库类型（MySQL/达梦/PG）。
 5. 支持将备份后的文件迁移到多地进行备份，内置存储支持 `local/host/s3/webdav`，并支持配置保留数量。
-6. 备份完成后支持通知：目前支持发送指定 HTTP/HTTPS 请求进行通知。
+6. 备份完成后支持通知：目前支持发送指定 通知渠道 请求进行通知。
 
 
 
@@ -50,13 +50,12 @@
 3. 本地使用 SQLite 保存备份过程中的元数据。
 
 
-4. 所有备份文件在导出后立即压缩为 `.zst`（Zstandard）格式。
+4. 所有备份文件在导出后，将日志文件和备份文件打包成 `tar` ，然后压缩为 `.zst`（Zstandard）格式。
 
-- 文件命名规则：`{db_type}_{ip}_{port}_{schema}_{version}_{timestamp}.xxx.zst`。
+- 文件命名规则：`{db_type}_{ip}_{port}_{schema}_{version}_{timestamp}.tar.zst`。
 - 软件版本号在代码中硬编码维护：`internal/appmeta/version.go`。
 - 构建时间通过编译参数写入：`go build -ldflags "-X dbkeeper-core/internal/appmeta.BuildTime=2026-03-03T16:30:00+08:00"`。
 - 导出后先压缩，再计算哈希，然后执行远程备份。
-- `xxx` 在不同数据库中不同：MySQL 导出 `.sql`，达梦导出 `.dmp`，PG 导出 `.dump`。
 
 
 
