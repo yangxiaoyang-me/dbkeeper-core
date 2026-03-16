@@ -15,6 +15,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"dbkeeper-core/internal/config"
 	"dbkeeper-core/internal/domain"
@@ -28,6 +29,7 @@ import (
 type SQLiteRepository struct {
 	cfg config.Database // 数据库配置（文件路径、连接参数等）
 	db  *sql.DB         // 底层数据库连接池
+	mu  sync.Mutex      // 串行化写入，避免并发写触发 SQLITE_BUSY
 }
 
 // initSchemaSQL 是数据库表初始化 SQL，包含两张表的建表语句和索引。
@@ -90,7 +92,10 @@ func NewSQLiteRepository(cfg config.Database) (*SQLiteRepository, error) {
 
 	maxConns := cfg.MaxOpenConns
 	if maxConns <= 0 {
-		maxConns = 10
+		maxConns = 1
+	}
+	if maxConns > 1 {
+		maxConns = 1
 	}
 	db.SetMaxOpenConns(maxConns)
 	db.SetMaxIdleConns(maxConns)
@@ -106,6 +111,9 @@ func NewSQLiteRepository(cfg config.Database) (*SQLiteRepository, error) {
 // 使用内置 SQL 语句创建表和索引（IF NOT EXISTS），无需外部 migration 文件。
 // 使用场景：每次运行开始时调用，确保表结构存在（幂等操作）。
 func (r *SQLiteRepository) InitSchema(ctx context.Context) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
 	_, err := r.db.ExecContext(ctx, initSchemaSQL)
 	if err != nil {
 		return fmt.Errorf("执行初始化脚本失败: %w", err)
@@ -117,6 +125,9 @@ func (r *SQLiteRepository) InitSchema(ctx context.Context) error {
 // 记录内容包括：数据库地址、文件路径、哈希值、备份耗时等。
 // 使用场景：数据库导出并压缩完成后调用，记录本次备份的元信息。
 func (r *SQLiteRepository) InsertSnapshotsAttachment(ctx context.Context, att domain.SnapshotAttachment) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
 	_, err := r.db.ExecContext(ctx, `
 INSERT INTO snapshots_attachment (
 	id, db_ip, db_port, db_schema, work_dir, file_name, file_hash,
@@ -133,6 +144,9 @@ INSERT INTO snapshots_attachment (
 // 通过 snapshots_attachment_id 外键关联到对应的本地备份记录。
 // 使用场景：备份文件上传到远端存储后调用，记录存储位置信息。
 func (r *SQLiteRepository) InsertStorageSnapshotsAttachment(ctx context.Context, att domain.StorageSnapshotAttachment) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
 	_, err := r.db.ExecContext(ctx, `
 INSERT INTO storage_snapshots_attachment (
 	id, snapshots_attachment_id, storage_name, storage_type, storage_ip, storage_port,
